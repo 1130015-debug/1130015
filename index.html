@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>數字點擊王 | Number Clicker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background: #1a1a2e;
+            background: linear-gradient(135deg, #16222A 0%, #3A6073 100%);
+            color: #e0e0e0;
+            overflow: hidden;
+            user-select: none;
+        }
+        .game-container {
+            width: 100%;
+            max-width: 800px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            border-radius: 20px;
+        }
+        .game-screen {
+            background-color: rgba(0, 0, 0, 0.4);
+            border: 2px solid #6c5ce7;
+            box-shadow: 0 0 20px rgba(108, 92, 231, 0.5);
+            position: relative;
+            overflow: hidden;
+            flex-grow: 1;
+            border-radius: 15px;
+        }
+        .word {
+            position: absolute;
+            font-weight: 700;
+            font-size: 1.75rem;
+            color: #ffffff;
+            padding: 8px 16px;
+            border-radius: 10px;
+            white-space: nowrap;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            transition: transform 0.1s ease-out;
+            border: none;
+            cursor: pointer;
+        }
+        .word:hover {
+            transform: scale(1.05);
+        }
+        .btn {
+            transition: all 0.2s ease-in-out;
+            border-radius: 10px;
+            font-weight: 700;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+        }
+        .btn-start {
+            background: #6c5ce7;
+            color: white;
+        }
+        .btn-start:hover {
+            background: #a29bfe;
+            transform: translateY(-2px);
+        }
+        .modal-bg {
+            background-color: rgba(0,0,0,0.7);
+        }
+        .modal-box {
+            background: linear-gradient(135deg, #3A6073 0%, #16222A 100%);
+            border: 2px solid #a29bfe;
+            box-shadow: 0 0 30px rgba(162, 155, 254, 0.6);
+            border-radius: 20px;
+        }
+        .stat-label {
+            color: #a29bfe;
+            font-weight: 700;
+        }
+        .stat-value {
+            color: #f6e58d;
+            font-weight: 900;
+            font-size: 1.5rem;
+        }
+        .life-heart {
+            color: #ff7675;
+            transition: transform 0.2s ease;
+        }
+        .life-heart.lost {
+            transform: scale(0);
+        }
+        @keyframes fall {
+            to {
+                transform: translateY(100vh);
+            }
+        }
+        @keyframes explosion {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(2); opacity: 0; }
+        }
+        .explosion {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            background-image: url('https://placehold.co/100x100/000000/000000?text=💥');
+            background-size: contain;
+            animation: explosion 0.5s ease-out forwards;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center h-screen">
+
+    <div class="game-container p-4 md:p-8">
+        <!-- 頂部資訊欄 -->
+        <div class="flex justify-between items-center p-4 mb-4 bg-black bg-opacity-30 rounded-lg">
+            <div>
+                <span class="stat-label text-lg">分數:</span>
+                <span id="score" class="stat-value ml-2">0</span>
+            </div>
+            <div>
+                <span class="stat-label text-lg">生命:</span>
+                <span id="lives-container" class="ml-2">
+                    <span class="life-heart text-2xl">❤️</span>
+                    <span class="life-heart text-2xl">❤️</span>
+                    <span class="life-heart text-2xl">❤️</span>
+                </span>
+            </div>
+            <div>
+                <span class="stat-label text-lg">等級:</span>
+                <span id="level" class="stat-value ml-2">1</span>
+            </div>
+        </div>
+
+        <!-- 遊戲主畫面 -->
+        <div id="game-screen" class="game-screen">
+            <!-- 數字會出現在這裡 -->
+        </div>
+
+        <!-- 說明區域 -->
+        <div class="mt-4">
+            <p class="w-full p-4 text-xl text-center rounded-lg" style="background-color: rgba(0, 0, 0, 0.2); color: #a29bfe;">快速點擊掉落的數字！</p>
+        </div>
+    </div>
+
+    <!-- 遊戲開始/結束 Modal -->
+    <div id="modal" class="absolute inset-0 z-10 flex items-center justify-center modal-bg">
+        <div class="modal-box w-11/12 max-w-md p-8 text-center">
+            <h1 id="modal-title" class="text-4xl font-black mb-2" style="color: #f6e58d;">數字點擊王</h1>
+            <p id="modal-text" class="text-lg mb-6">考驗你的反應力！<br>在數字掉落到底部前點擊它！</p>
+            <div id="final-stats" class="hidden mb-6">
+                <p class="text-2xl font-bold">最終分數: <span id="final-score" class="text-yellow-300"></span></p>
+                <p class="text-xl">最高等級: <span id="final-level" class="text-yellow-300"></span></p>
+            </div>
+            <button id="start-btn" class="btn btn-start w-full py-4 text-2xl">開始遊戲</button>
+        </div>
+    </div>
+
+    <script>
+        // DOM 元素
+        const gameScreen = document.getElementById('game-screen');
+        const scoreDisplay = document.getElementById('score');
+        const livesContainer = document.getElementById('lives-container');
+        const levelDisplay = document.getElementById('level');
+        const modal = document.getElementById('modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalText = document.getElementById('modal-text');
+        const finalStats = document.getElementById('final-stats');
+        const finalScoreDisplay = document.getElementById('final-score');
+        const finalLevelDisplay = document.getElementById('final-level');
+        const startBtn = document.getElementById('start-btn');
+
+        // 遊戲設定
+        let score = 0;
+        let lives = 3;
+        let level = 1;
+        let gameInterval;
+        let isGameRunning = false;
+        let activeWords = [];
+
+        // 遊戲初始化
+        function init() {
+            score = 0;
+            lives = 3;
+            level = 1;
+            isGameRunning = false;
+            activeWords = [];
+            gameScreen.innerHTML = '';
+            gameScreen.removeEventListener('click', handleScreenClick); // 安全起見，先移除監聽器
+            updateHUD();
+            modal.classList.remove('hidden');
+            modalTitle.textContent = '數字點擊王';
+            modalText.textContent = '考驗你的反應力！在數字掉落到底部前點擊它！';
+            finalStats.classList.add('hidden');
+            startBtn.textContent = '開始遊戲';
+        }
+
+        // 更新遊戲資訊 (HUD)
+        function updateHUD() {
+            scoreDisplay.textContent = score;
+            levelDisplay.textContent = level;
+            
+            // 更新生命愛心
+            const hearts = livesContainer.querySelectorAll('.life-heart');
+            hearts.forEach((heart, index) => {
+                if (index < lives) {
+                    heart.classList.remove('lost');
+                } else {
+                    heart.classList.add('lost');
+                }
+            });
+        }
+
+        // 開始遊戲
+        function startGame() {
+            isGameRunning = true;
+            modal.classList.add('hidden');
+            gameLoop();
+            gameScreen.addEventListener('click', handleScreenClick);
+        }
+        
+        // 遊戲主循環
+        function gameLoop() {
+            const spawnRate = Math.max(750 - level * 50, 150); // 等級越高，物件出現越快 (速度減半)
+            gameInterval = setInterval(() => {
+                if (isGameRunning) {
+                    createWord();
+                }
+            }, spawnRate);
+        }
+
+        // 創造一個新的數字
+        function createWord() {
+            const wordText = String(Math.floor(Math.random() * 999) + 1);
+            const wordEl = document.createElement('button');
+            wordEl.textContent = wordText;
+            wordEl.className = 'word';
+
+            // 設定初始位置和顏色
+            const wordWidth = wordText.length * 28; // 粗估寬度
+            const xPos = Math.random() * (gameScreen.clientWidth - wordWidth);
+            const randomColor = `hsl(${Math.random() * 360}, 90%, 75%)`;
+            wordEl.style.left = `${xPos}px`;
+            wordEl.style.top = `-50px`; // 從畫面外開始
+            wordEl.style.backgroundColor = randomColor;
+
+            gameScreen.appendChild(wordEl);
+            
+            const fallDuration = Math.max(4 - level * 0.25, 1); // 等級越高，掉落越快 (速度減半)
+            
+            const animation = wordEl.animate([
+                { top: '-50px' },
+                { top: `${gameScreen.clientHeight}px` }
+            ], {
+                duration: fallDuration * 1000,
+                easing: 'linear'
+            });
+
+            const wordData = {
+                element: wordEl,
+                text: wordText,
+                animation: animation
+            };
+            activeWords.push(wordData);
+
+            wordEl.addEventListener('click', () => {
+                if (!isGameRunning) return;
+                wordEl.disabled = true;
+
+                const clickedIndex = activeWords.findIndex(w => w === wordData);
+                if (clickedIndex !== -1) {
+                    createExplosion(wordEl);
+                    wordEl.remove();
+                    animation.cancel();
+                    activeWords.splice(clickedIndex, 1);
+                    
+                    score += parseInt(wordData.text, 10); // 分數等於點到的數字
+                    updateHUD();
+                    
+                    if (score > level * 50 * level) { // 升級難度也隨之提高
+                        level++;
+                        updateHUD();
+                    }
+                }
+            });
+            
+            animation.onfinish = () => {
+                if (activeWords.includes(wordData)) {
+                    wordEl.remove();
+                    activeWords = activeWords.filter(w => w !== wordData);
+                    loseLife();
+                }
+            };
+        }
+
+        // 失去生命
+        function loseLife() {
+            if (!isGameRunning) return;
+            lives--;
+            updateHUD();
+            if (lives <= 0) {
+                gameOver();
+            }
+        }
+        
+        // 遊戲結束
+        function gameOver() {
+            isGameRunning = false;
+            clearInterval(gameInterval);
+            gameScreen.removeEventListener('click', handleScreenClick);
+
+            modal.classList.remove('hidden');
+            modalTitle.textContent = '遊戲結束';
+            modalText.textContent = '手速跟不上啦！再接再厲！';
+            
+            finalStats.classList.remove('hidden');
+            finalScoreDisplay.textContent = score;
+            finalLevelDisplay.textContent = level;
+            
+            startBtn.textContent = '再玩一次';
+        }
+        
+        // 處理遊戲畫面的點擊 (點擊背景得分)
+        function handleScreenClick(event) {
+            if (event.target === gameScreen) { // 確保是點擊背景，而不是數字方塊
+                if (!isGameRunning) return;
+                score += 1; // 點擊背景得 1 分
+                updateHUD();
+                
+                // 檢查是否升級
+                if (score > level * 50 * level) {
+                    level++;
+                    updateHUD();
+                }
+            }
+        }
+        
+        // 爆炸效果
+        function createExplosion(wordEl) {
+            const rect = wordEl.getBoundingClientRect();
+            const gameRect = gameScreen.getBoundingClientRect();
+            const explosion = document.createElement('div');
+            explosion.className = 'explosion';
+            
+            explosion.style.left = `${rect.left - gameRect.left + rect.width / 2 - 50}px`;
+            explosion.style.top = `${rect.top - gameRect.top + rect.height / 2 - 50}px`;
+            
+            gameScreen.appendChild(explosion);
+            
+            setTimeout(() => {
+                explosion.remove();
+            }, 500);
+        }
+
+        // 開始按鈕事件
+        startBtn.addEventListener('click', () => {
+            if (!isGameRunning) {
+                init(); // 如果是結束後點擊，先重置
+                startGame();
+            }
+        });
+
+        // 初始化遊戲
+        init();
+    </script>
+</body>
+</html>
+
+
+
+
+
